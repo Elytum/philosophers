@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   philo.h                                            :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: achazal <achazal@student.42.fr>            +#+  +:+       +#+        */
+/*   By: xacoquan <xacoquan@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2015/05/03 04:07:02 by achazal           #+#    #+#             */
-/*   Updated: 2015/05/03 04:07:04 by achazal          ###   ########.fr       */
+/*   Updated: 2015/05/24 23:36:19 by xacoquan         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -41,12 +41,14 @@ typedef struct	s_params
 }				t_params;
 
 void			puterror(int output, char *str, size_t len, int out);
-int				exit_function(pthread_mutex_t chopsticks[PHILOSOPHERS_NB],
-								int ret);
+int				exit_function(int ret);
 void			init_philosophers(pthread_t philosophers[PHILOSOPHERS_NB],
 										t_params *params[PHILOSOPHERS_NB]);
 int				wait_philosophers(pthread_t philosophers[PHILOSOPHERS_NB]);
-void			init_mutex(pthread_mutex_t chopsticks[PHILOSOPHERS_NB]);
+void			init_mutex(void);
 int				philo(void *param);
+
+
+pthread_mutex_t g_chopsticks[PHILOSOPHERS_NB];
 
 #endif

@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   out.c                                              :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: achazal <achazal@student.42.fr>            +#+  +:+       +#+        */
+/*   By: xacoquan <xacoquan@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2015/05/03 04:07:02 by achazal           #+#    #+#             */
-/*   Updated: 2015/05/03 04:07:04 by achazal          ###   ########.fr       */
+/*   Updated: 2015/05/24 23:37:30 by xacoquan         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,21 +14,21 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-void	puterror(int output, char *str, size_t len, int out)
+void						puterror(int output, char *str, size_t len, int out)
 {
 	write(output, str, len);
 	exit(out);
 }
-#include <stdio.h>
 
-int		exit_function(pthread_mutex_t chopsticks[PHILOSOPHERS_NB], int ret)
+int							exit_function(int ret)
 {
-	char	c;
-	int		id;
+	extern pthread_mutex_t	g_chopsticks[PHILOSOPHERS_NB];
+	char					c;
+	int						id;
 
 	id = 0;
 	while (id < PHILOSOPHERS_NB)
-		pthread_mutex_destroy(&(chopsticks[id++]));
+		pthread_mutex_destroy(&(g_chopsticks[id++]));
 	if (ret == 1)
 		write(1, "Now, it is time... To DAAAAAAAANCE ! ! !", 40);
 	else

@@ -6,7 +6,7 @@
 /*   By: xacoquan <xacoquan@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2015/05/03 04:07:02 by achazal           #+#    #+#             */
-/*   Updated: 2015/05/24 23:36:19 by xacoquan         ###   ########.fr       */
+/*   Updated: 2015/05/25 00:14:43 by xacoquan         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -32,6 +32,7 @@ typedef struct	s_phisolophe
 	size_t		id;
 	ssize_t		life;
 	t_state		state;
+	int			newstate;
 }				t_phisolophe;
 
 typedef struct	s_params

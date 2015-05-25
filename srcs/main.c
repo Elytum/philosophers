@@ -10,6 +10,6 @@ int					main(void)
 	init_philosophers(philosophers, params);
 	ret = wait_philosophers(philosophers);
 	ret = exit_function(ret);
-	while (42);
+	// while (42);
 	return (ret);
 }

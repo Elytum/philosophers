@@ -13,11 +13,11 @@
 #ifndef CONFIG_H
 # define CONFIG_H
 
-# define PHILOSOPHERS_NB 42
-# define MAX_LIFE 75
-# define EAT_T 25
-# define REST_T 7
-# define THINK_T 2
-# define TIMEOUT 600
+# define PHILOSOPHERS_NB 7
+# define MAX_LIFE 10
+# define EAT_T 4
+# define REST_T 4
+# define THINK_T 4
+# define TIMEOUT 60
 
 #endif

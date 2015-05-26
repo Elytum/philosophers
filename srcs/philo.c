@@ -16,16 +16,15 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-int						g_nobody_died = 1;
-extern pthread_mutex_t	g_chopsticks[PHILOSOPHERS_NB];
+int							g_nobody_died = 1;
+extern pthread_mutex_t		g_chopsticks[PHILOSOPHERS_NB];
 
-t_phisolophe		create_philosopher(void *param)
+static inline t_phisolophe	create_philosopher(void *param)
 {
-	t_phisolophe	philo;
-	t_params		*params;
+	t_phisolophe			philo;
+	t_params				*params;
 
 	params = (t_params *)param;
-	// dprintf(1, "Giving birth to : %zi\n", params->id);
 	philo.newstate = 0;
 	philo.id = params->id;
 	philo.birth = params->birth;
@@ -33,30 +32,26 @@ t_phisolophe		create_philosopher(void *param)
 	philo.life = MAX_LIFE;
 	philo.last_eat = params->birth;
 	philo.last_sec = params->birth;
+	philo.turn = 0;
 	return (philo);
 }
 
-int					out_died(int ret)
+static inline int			out_died(int ret)
 {
 	g_nobody_died = 0;
 	return (ret);
 }
 
-
-int					try_eating(t_phisolophe *philo)
+static inline int			try_eating(t_phisolophe *philo)
 {
-	size_t			otherid;
+	size_t					otherid;
 
 	if (philo->id == 0)
 		otherid = PHILOSOPHERS_NB - 1;
 	else
 		otherid = philo->id - 1;
-	// dprintf(1, "Process %zi trying to eating with %zi and %zi\n", philo->id, philo->id, otherid);
 	if (pthread_mutex_trylock(&(g_chopsticks[philo->id])))
-	{
 		return (0);
-	}
-	// dprintf(1, "Process %zi can't eat because %zi is used at %zi\n", philo->id, philo->id, time(NULL));
 	if (pthread_mutex_trylock(&(g_chopsticks[otherid])))
 	{
 		if (pthread_mutex_unlock(&(g_chopsticks[philo->id])))
@@ -64,15 +59,12 @@ int					try_eating(t_phisolophe *philo)
 			g_nobody_died = 0;
 			return (0);
 		}
-		// dprintf(1, "Process %zi can't eat because %zi is used at %zi\n", philo->id, otherid, time(NULL));
 		return (0);
 	}
-	// dprintf(1, "Process %zi will eat with %zi and %zi at %zi\n", philo->id, philo->id, otherid, time(NULL));
-	// dprintf(1, "Process %zi will eat with %zi (%p) and %zi (%p) at %zi\n", philo->id, philo->id, &g_chopsticks[philo->id], otherid, &g_chopsticks[otherid], time(NULL));
 	return (1);
 }
 
-int					can_thing(t_phisolophe *philo)
+static inline int			can_thing(t_phisolophe *philo)
 {
 	if (pthread_mutex_trylock(&(g_chopsticks[philo->id])))
 		return (0);
@@ -86,9 +78,9 @@ int					can_thing(t_phisolophe *philo)
 **		Tentative de prise de baguettes en cas de besoin
 */		
 
-int					update_philosopher(t_phisolophe *philo)
+static inline int			update_philosopher(t_phisolophe *philo)
 {
-	static size_t	tmp;
+	static size_t			tmp;
 
 	tmp = time(NULL);
 	if (tmp > philo->birth + TIMEOUT)
@@ -100,12 +92,15 @@ int					update_philosopher(t_phisolophe *philo)
 		if (philo->life <= 0)
 			return (out_died(0));
 	}
-	if (philo->life <= MAX_LIFE * (3.5f / 4.f) && try_eating(philo))
+	if ((philo->life <= MAX_LIFE * (3.5f / 4.f) ||
+		(philo->turn == 0 && !(philo->id & 0b00000000000000000000000000000001)) ||
+		(philo->turn == 1 &&  (philo->id & 0b00000000000000000000000000000001)))
+					&& try_eating(philo))
 	{
 		philo->newstate = 1;
 		philo->state = EATING;
 	}
-	else if (philo->life <= MAX_LIFE * (2.5f / 4.f) && can_thing(philo))
+	else if (philo->life <= MAX_LIFE * (2.75f / 4.f) && can_thing(philo))
 	{
 		philo->newstate = 1;
 		philo->state = THINKING;
@@ -121,15 +116,14 @@ int					update_philosopher(t_phisolophe *philo)
 /*
 **	Gestion des états :
 **		EATING		-> Attente puis gain de vie et activation du repos
-**		RESTING		-> Perte de vie, détection de la défaite puis attente
-**		THINKING	-> Perte de vie, détection de la défaite puis attente
+**		RESTING		-> Perte de vie
+**		THINKING	-> Perte de vie
 */
 
-static inline void	process_eating(t_phisolophe *philo)
+static inline void			process_eating(t_phisolophe *philo)
 {
-	size_t			otherid;
+	size_t					otherid;
 
-	// dprintf(1, "Philosopher %zi sleeping for %zi seconds (time = %zi), life = %zi\n", philo->id, EAT_T, time(NULL), philo->life);
 	philo->life = MAX_LIFE;
 	usleep(EAT_T * 1000 * 1000);
 	if (pthread_mutex_unlock(&(g_chopsticks[philo->id])))
@@ -148,56 +142,33 @@ static inline void	process_eating(t_phisolophe *philo)
 	}
 	philo->state = RESTING;
 	philo->last_sec = time(NULL) + REST_T;
-	// dprintf(1, "Philosopher %zi woke up (time = %zi), life = %zi\n", philo->id, time(NULL), philo->life);
 }
 
-int					update_state(t_phisolophe *philo)
+static inline int			update_state(t_phisolophe *philo)
 {
-	// if (philo->newstate == 1)
-	// {
-		// dprintf(1, "Philosophe %zu is being updated, life = %zu, state = %i\n", philo->id, philo->life, philo->state);
-		// philo->newstate = 0;
-		if (philo->state == EATING)
+	if (philo->state == EATING)
+	{
+		process_eating(philo);
+		if (!g_nobody_died)
+			return (1);
+	}
+	if (philo->state == RESTING)
+		usleep(REST_T * 1000 * 1000);
+	if (philo->state == THINKING)
+	{
+		usleep(THINK_T * 1000 * 1000);
+		if (pthread_mutex_unlock(&(g_chopsticks[philo->id])))
 		{
-			process_eating(philo);
-			if (!g_nobody_died)
-				return (1);
+			g_nobody_died = 0;
+			return (1);
 		}
-		if (philo->state == RESTING)
-		{
-			// if (philo->life <= REST_T)
-			// 	return (out_died(1));
-			// philo->life -= REST_T;
-			// if (!g_nobody_died)
-			// 	return (1);
-			usleep(REST_T * 1000 * 1000);
-			// if (!g_nobody_died)
-				// return (1);
-		}
-		if (philo->state == THINKING)
-		{
-			// if (philo->life <= THINK_T)
-			// 	return (out_died(1));
-			// philo->life -= THINK_T;
-			// if (!g_nobody_died)
-			// 	return (1);
-			usleep(THINK_T * 1000 * 1000);
-			// if (!g_nobody_died)
-				// return (1);
-			if (pthread_mutex_unlock(&(g_chopsticks[philo->id])))
-			{
-				g_nobody_died = 0;
-				return (1);
-			}
-		}
-		// dprintf(1, "Philosophe %zu have been updated, life = %zu\n", philo->id, philo->life);
-	// }
+	}
 	return (0);
 }
 
-int					philo(void *param)
+int							philo(void *param)
 {
-	t_phisolophe	philo;
+	t_phisolophe			philo;
 
 	philo = create_philosopher(param);
 	while (philo.life > 0 && g_nobody_died)
@@ -207,7 +178,7 @@ int					philo(void *param)
 		dprintf(1, "Philosopher %zi passing throug loop with %zi of life in state %zi\n", philo.id, philo.life, philo.state);
 		if (update_state(&philo))
 			break ;
+		philo.turn++;
 	}
-	// dprintf(1, "Philosophe %zi died\n", philo.id);
 	return (out_died(0));
 }

@@ -33,6 +33,7 @@ typedef struct	s_phisolophe
 	ssize_t		life;
 	t_state		state;
 	int			newstate;
+	size_t		turn;
 }				t_phisolophe;
 
 typedef struct	s_params

@@ -15,11 +15,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void			init_philosophers(pthread_t philosophers[PHILOSOPHERS_NB],
+void		init_philosophers(pthread_t philosophers[PHILOSOPHERS_NB],
 									t_params *params[PHILOSOPHERS_NB])
 {
-	int			id;
-	size_t		birth;
+	int		id;
+	size_t	birth;
 
 	id = 0;
 	birth = time(NULL);

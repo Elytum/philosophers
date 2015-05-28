@@ -2,13 +2,12 @@
 
 int					main(void)
 {
-	pthread_t		philosophers[PHILOSOPHERS_NB];
 	int				ret;
 	t_params		*params[PHILOSOPHERS_NB];
 
 	init_mutex();
-	init_philosophers(philosophers, params);
-	ret = wait_philosophers(philosophers);
+	init_philosophers(params);
+	ret = wait_philosophers();
 	ret = exit_function(ret);
 	return (ret);
 }

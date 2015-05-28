@@ -15,11 +15,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void		init_philosophers(pthread_t philosophers[PHILOSOPHERS_NB],
-									t_params *params[PHILOSOPHERS_NB])
+void					init_philosophers(t_params *params[PHILOSOPHERS_NB])
 {
-	int		id;
-	size_t	birth;
+	extern pthread_t	g_philosophers[PHILOSOPHERS_NB];
+	int					id;
+	size_t				birth;
 
 	id = 0;
 	birth = time(NULL);
@@ -29,25 +29,40 @@ void		init_philosophers(pthread_t philosophers[PHILOSOPHERS_NB],
 			 puterror(2, "Malloc error\n", 13, 2);
 		params[id]->id = id;
 		params[id]->birth = birth;
-		pthread_create(&(philosophers[id]), NULL,
+		pthread_create(&(g_philosophers[id]), NULL,
 						(void *)philo, (void *)((params[id])));
 		++id;
 	}
 }
 
-int			wait_philosophers(pthread_t philosophers[PHILOSOPHERS_NB])
+void					init_requests(void)
 {
-	int		id;
-	int		ret;
+	extern int			g_requests[PHILOSOPHERS_NB + 1];
+	size_t				i;
+
+	i = 0;
+	while (i <= PHILOSOPHERS_NB)
+	{
+		g_requests[i] = 0;
+		i++;
+	}
+}
+
+int						wait_philosophers(void)
+{
+	extern pthread_t	g_philosophers[PHILOSOPHERS_NB];
+	int					id;
+	int					ret;
 
 	ret = 0;
 	id = 0;
+	dprintf(1, "Waiting philosophers");
 	while (id < PHILOSOPHERS_NB)
 	{
 		if (ret == 0)
-			pthread_join(philosophers[id], (void **)(&ret));
+			pthread_join(g_philosophers[id], (void **)(&ret));
 		else
-			pthread_join(philosophers[id], NULL);
+			pthread_join(g_philosophers[id], NULL);
 		id++;
 	}
 	return (ret);

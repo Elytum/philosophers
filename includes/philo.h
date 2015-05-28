@@ -17,6 +17,10 @@
 # include <pthread.h>
 # include <sys/types.h>
 
+# define EAT_TIME EAT_T * 1000 * 1000
+# define REST_TIME REST_T * 1000 * 1000
+# define THINK_TIME THINK_T * 1000 * 1000
+# define WAITING_TIME 5000
 typedef enum	e_state
 {
 	EATING = 0,
@@ -32,8 +36,10 @@ typedef struct	s_phisolophe
 	size_t		id;
 	ssize_t		life;
 	t_state		state;
-	int			newstate;
 	size_t		turn;
+	size_t		tmp;
+	size_t		left;
+	size_t		right;
 }				t_phisolophe;
 
 typedef struct	s_params
@@ -44,13 +50,13 @@ typedef struct	s_params
 
 void			puterror(int output, char *str, size_t len, int out);
 int				exit_function(int ret);
-void			init_philosophers(pthread_t philosophers[PHILOSOPHERS_NB],
-										t_params *params[PHILOSOPHERS_NB]);
-int				wait_philosophers(pthread_t philosophers[PHILOSOPHERS_NB]);
+void			init_philosophers(t_params *params[PHILOSOPHERS_NB]);
+int				wait_philosophers(void);
 void			init_mutex(void);
 int				philo(void *param);
 
-
+int				g_requests[PHILOSOPHERS_NB + 1];
 pthread_mutex_t g_chopsticks[PHILOSOPHERS_NB];
+pthread_t		g_philosophers[PHILOSOPHERS_NB];
 
 #endif

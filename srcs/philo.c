@@ -15,9 +15,11 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <signal.h>
 
-int							g_nobody_died = 1;
+extern int					g_requests[PHILOSOPHERS_NB + 1];
 extern pthread_mutex_t		g_chopsticks[PHILOSOPHERS_NB];
+extern pthread_t			g_philosophers[PHILOSOPHERS_NB];
 
 static inline t_phisolophe	create_philosopher(void *param)
 {
@@ -25,7 +27,6 @@ static inline t_phisolophe	create_philosopher(void *param)
 	t_params				*params;
 
 	params = (t_params *)param;
-	philo.newstate = 0;
 	philo.id = params->id;
 	philo.birth = params->birth;
 	philo.state = RESTING;
@@ -33,30 +34,29 @@ static inline t_phisolophe	create_philosopher(void *param)
 	philo.last_eat = params->birth;
 	philo.last_sec = params->birth;
 	philo.turn = 0;
+	if (philo.id == 0)
+		philo.left = PHILOSOPHERS_NB - 1;
+	else
+		philo.left = philo.id - 1;
+	philo.right = philo.id;
 	return (philo);
 }
 
 static inline int			out_died(int ret)
 {
-	g_nobody_died = 0;
+	g_requests[PHILOSOPHERS_NB] = 1;
 	return (ret);
 }
 
-static inline int			try_eating(t_phisolophe *philo)
+static inline int			can_eating(t_phisolophe *philo)
 {
-	size_t					otherid;
-
-	if (philo->id == 0)
-		otherid = PHILOSOPHERS_NB - 1;
-	else
-		otherid = philo->id - 1;
-	if (pthread_mutex_trylock(&(g_chopsticks[philo->id])))
+	if (pthread_mutex_trylock(&(g_chopsticks[philo->right])))
 		return (0);
-	if (pthread_mutex_trylock(&(g_chopsticks[otherid])))
+	if (pthread_mutex_trylock(&(g_chopsticks[philo->left])))
 	{
-		if (pthread_mutex_unlock(&(g_chopsticks[philo->id])))
+		if (pthread_mutex_unlock(&(g_chopsticks[philo->right])))
 		{
-			g_nobody_died = 0;
+			g_requests[PHILOSOPHERS_NB] = 1;
 			return (0);
 		}
 		return (0);
@@ -64,9 +64,9 @@ static inline int			try_eating(t_phisolophe *philo)
 	return (1);
 }
 
-static inline int			can_thing(t_phisolophe *philo)
+static inline int			can_think(t_phisolophe *philo)
 {
-	if (pthread_mutex_trylock(&(g_chopsticks[philo->id])))
+	if (pthread_mutex_trylock(&(g_chopsticks[philo->right])))
 		return (0);
 	return (1);
 }
@@ -78,38 +78,83 @@ static inline int			can_thing(t_phisolophe *philo)
 **		Tentative de prise de baguettes en cas de besoin
 */		
 
-static inline int			update_philosopher(t_phisolophe *philo)
+int							starving(t_phisolophe *philo)
 {
-	static size_t			tmp;
-
-	tmp = time(NULL);
-	if (tmp > philo->birth + TIMEOUT)
+	if (philo->life < REST_T && philo->life < THINK_T)
+	{
+		dprintf(1, "Philosopher %zi starving\n", philo->id);
+		if (philo->state != THINKING &&
+				pthread_mutex_trylock(&(g_chopsticks[philo->right])))
+		{
+			dprintf(1, "%zi has an already used chopstick\n", philo->right);
+			return (0);
+		}
+		if (pthread_mutex_trylock(&(g_chopsticks[philo->left])))
+		{
+			dprintf(1, "%zi asking assistance from philosopher %zi\n", philo->right, philo->left);
+			g_requests[philo->left] = 1;
+			usleep((WAITING_TIME + 1000) * 10);
+			g_requests[philo->left] = 0;
+			if (pthread_mutex_trylock(&(g_chopsticks[philo->left])))
+			{
+				dprintf(1, "%zi can't access to left chopstick\n", philo->right);
+				pthread_mutex_unlock(&(g_chopsticks[philo->right]));
+				return (0);
+			}
+		}
+		philo->state = EATING;
 		return (1);
-	while (tmp > philo->last_sec)
+	}
+	return (0);
+}
+
+int							life_loss(t_phisolophe *philo)
+{
+	while ((size_t)time(NULL) > philo->last_sec)
 	{
 		philo->last_sec++;
 		philo->life--;
 		if (philo->life <= 0)
-			return (out_died(0));
+		{
+			g_requests[PHILOSOPHERS_NB] = 1;
+			return (0);
+		}
 	}
-	if ((philo->life <= MAX_LIFE * (3.5f / 4.f) ||
-		(philo->turn == 0 && !(philo->id & 0b00000000000000000000000000000001)) ||
-		(philo->turn == 1 &&  (philo->id & 0b00000000000000000000000000000001)))
-					&& try_eating(philo))
-	{
-		philo->newstate = 1;
+	return (1);
+}
+
+int							should_eat(t_phisolophe *philo)
+{
+	usleep(10000);
+	if (!(g_requests[philo->right]))
+		return (1);
+	return ((philo->life <= MAX_LIFE * (3.5f / 4.f) ||
+		(philo->turn == 0 &&
+					!(philo->id & 0b00000000000000000000000000000001)) ||
+		(philo->turn == 1 &&
+					(philo->id & 0b00000000000000000000000000000001))));
+}
+
+int							should_think(t_phisolophe *philo)
+{
+	return ((philo->life < THINK_T * 2 &&
+			philo->id & 0b00000000000000000000000000000001) ||
+		philo->life <= MAX_LIFE * (2.5f / 4.f));
+}
+
+
+static inline int			update_philosopher(t_phisolophe *philo)
+{
+	if ((size_t)time(NULL) > philo->birth + TIMEOUT)
+		return (1);
+	if (!life_loss(philo) || starving(philo))
+		return (0);
+	if (should_eat(philo) && can_eating(philo))
 		philo->state = EATING;
-	}
-	else if (philo->life <= MAX_LIFE * (2.75f / 4.f) && can_thing(philo))
-	{
-		philo->newstate = 1;
+	else if (should_think(philo) && can_think(philo))
 		philo->state = THINKING;
-	}
 	else
-	{
-		philo->newstate = 1;
 		philo->state = RESTING;
-	}
 	return (0);
 }
 
@@ -120,49 +165,49 @@ static inline int			update_philosopher(t_phisolophe *philo)
 **		THINKING	-> Perte de vie
 */
 
-static inline void			process_eating(t_phisolophe *philo)
+static inline void			do_eat(t_phisolophe *philo)
 {
-	size_t					otherid;
-
+	philo->tmp = time(NULL);
+	while ((size_t)time(NULL) < philo->tmp + EAT_T)
+		usleep(EAT_TIME);
 	philo->life = MAX_LIFE;
-	usleep(EAT_T * 1000 * 1000);
-	if (pthread_mutex_unlock(&(g_chopsticks[philo->id])))
-	{
-		g_nobody_died = 0;
-		return ;
-	}
-	if (philo->id == 0)
-		otherid = PHILOSOPHERS_NB - 1;
-	else
-		otherid = philo->id - 1;
-	if (pthread_mutex_unlock(&(g_chopsticks[otherid])))
-	{
-		g_nobody_died = 0;
-		return ;
-	}
-	philo->state = RESTING;
+	pthread_mutex_unlock(&(g_chopsticks[philo->left]));
+	pthread_mutex_unlock(&(g_chopsticks[philo->right]));
 	philo->last_sec = time(NULL) + REST_T;
+	usleep(REST_TIME);
+}
+
+void						do_think(t_phisolophe *philo)
+{
+	philo->tmp = time(NULL);
+	while ((size_t)time(NULL) < philo->tmp + THINK_T)
+	{
+		usleep(WAITING_TIME);
+		if (g_requests[philo->right])
+		{
+			dprintf(1, "%zi stopped thinking in order to save philosopher %zi\n", philo->right, (philo->right + 1) % PHILOSOPHERS_NB);
+			pthread_mutex_unlock(&(g_chopsticks[philo->right]));
+			while ((size_t)time(NULL) < philo->tmp + THINK_T)
+				usleep(WAITING_TIME);
+			return ;
+		}
+	}
+	pthread_mutex_unlock(&(g_chopsticks[philo->right]));
+}
+
+void						do_sleep(void)
+{
+	usleep(REST_TIME);
 }
 
 static inline int			update_state(t_phisolophe *philo)
 {
 	if (philo->state == EATING)
-	{
-		process_eating(philo);
-		if (!g_nobody_died)
-			return (1);
-	}
+		do_eat(philo);
 	if (philo->state == RESTING)
-		usleep(REST_T * 1000 * 1000);
+		do_sleep();
 	if (philo->state == THINKING)
-	{
-		usleep(THINK_T * 1000 * 1000);
-		if (pthread_mutex_unlock(&(g_chopsticks[philo->id])))
-		{
-			g_nobody_died = 0;
-			return (1);
-		}
-	}
+		do_think(philo);
 	return (0);
 }
 
@@ -171,11 +216,11 @@ int							philo(void *param)
 	t_phisolophe			philo;
 
 	philo = create_philosopher(param);
-	while (philo.life > 0 && g_nobody_died)
+	while (philo.life > 0 && !g_requests[PHILOSOPHERS_NB])
 	{
 		if (update_philosopher(&philo))
 			return (1);
-		dprintf(1, "Philosopher %zi passing throug loop with %zi of life in state %zi\n", philo.id, philo.life, philo.state);
+		dprintf(1, "Philosopher %zi acting with %zi of life in state %zi\n", philo.id, philo.life, philo.state);
 		if (update_state(&philo))
 			break ;
 		philo.turn++;
